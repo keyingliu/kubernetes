@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"time"
 
 	cadvisorapiv1 "github.com/google/cadvisor/info/v1"
 	cadvisorv2 "github.com/google/cadvisor/info/v2"
@@ -32,6 +33,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
@@ -238,7 +240,7 @@ func (kl *Kubelet) GetNode() (*v1.Node, error) {
 	return kl.nodeLister.Get(string(kl.nodeName))
 }
 
-// getNodeAnyWay() must return a *v1.Node which is required by RunGeneralPredicates().
+// getNodeAnyWay() must return a *v1.Node.
 // The *v1.Node is obtained as follows:
 // Return kubelet's nodeInfo for this node, except on error or if in standalone mode,
 // in which case return a manufactured nodeInfo representing a node with no pods,
@@ -250,6 +252,26 @@ func (kl *Kubelet) getNodeAnyWay() (*v1.Node, error) {
 		}
 	}
 	return kl.initialNode(context.TODO())
+}
+
+// ensureCacheNode() must return a *v1.Node which is required by RunGeneralPredicates().
+// It keeps waiting for the node lister cache to be populated
+// It should panic as predicates need up to date node info
+func (kl *Kubelet) ensureCacheNode() (*v1.Node, error) {
+	if kl.kubeClient == nil {
+		return kl.initialNode(context.TODO())
+	}
+	var n *v1.Node
+	var e error
+	if err := wait.PollImmediate(time.Millisecond*20, time.Second*30, func() (done bool, err error) {
+		if n, e = kl.nodeLister.Get(string(kl.nodeName)); e == nil {
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		panic("failed to get node %s from node lister")
+	}
+	return n, nil
 }
 
 // GetNodeConfig returns the container manager node config.

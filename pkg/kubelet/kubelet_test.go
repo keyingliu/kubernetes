@@ -303,7 +303,7 @@ func newTestKubeletWithImageList(
 	kubelet.evictionManager = evictionManager
 	kubelet.admitHandlers.AddPodAdmitHandler(evictionAdmitHandler)
 	// Add this as cleanup predicate pod admitter
-	kubelet.admitHandlers.AddPodAdmitHandler(lifecycle.NewPredicateAdmitHandler(kubelet.getNodeAnyWay, lifecycle.NewAdmissionFailureHandlerStub(), kubelet.containerManager.UpdatePluginResources))
+	kubelet.admitHandlers.AddPodAdmitHandler(lifecycle.NewPredicateAdmitHandler(kubelet.ensureCacheNode, lifecycle.NewAdmissionFailureHandlerStub(), kubelet.containerManager.UpdatePluginResources))
 
 	allPlugins := []volume.VolumePlugin{}
 	plug := &volumetest.FakeVolumePlugin{PluginName: "fake", Host: nil}
@@ -695,7 +695,7 @@ func TestHandlePluginResources(t *testing.T) {
 
 	// add updatePluginResourcesFunc to admission handler, to test it's behavior.
 	kl.admitHandlers = lifecycle.PodAdmitHandlers{}
-	kl.admitHandlers.AddPodAdmitHandler(lifecycle.NewPredicateAdmitHandler(kl.getNodeAnyWay, lifecycle.NewAdmissionFailureHandlerStub(), updatePluginResourcesFunc))
+	kl.admitHandlers.AddPodAdmitHandler(lifecycle.NewPredicateAdmitHandler(kl.ensureCacheNode, lifecycle.NewAdmissionFailureHandlerStub(), updatePluginResourcesFunc))
 
 	recorder := record.NewFakeRecorder(20)
 	nodeRef := &v1.ObjectReference{
